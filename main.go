@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Ensures that interfaces were implemented properly
 var (
@@ -13,7 +15,7 @@ var (
 	_ Node = (*Exp)(nil)
 
 	_ Node = (*Literal)(nil)
-	_ Node = (*Variable)(nil)
+	_ Node = (*Identifier)(nil)
 
 	_ Node = (*Sin)(nil)
 	_ Node = (*Cos)(nil)
@@ -220,15 +222,15 @@ func (l Literal) Simplify() Node {
 	return l
 }
 
-type Variable struct {
+type Identifier struct {
 	name string
 }
 
-func (v Variable) Diff() Node {
+func (v Identifier) Diff() Node {
 	return Literal{1}
 }
 
-func (v Variable) Simplify() Node {
+func (v Identifier) Simplify() Node {
 	return v
 }
 
@@ -270,14 +272,105 @@ func (t Tan) Simplify() Node {
 	return Tan{t.inner.Simplify()}
 }
 
+type Operator struct {
+	value string
+}
+
+func (o Operator) Diff() Node {
+	return o
+}
+
+func (o Operator) Simplify() Node {
+	return o
+}
+
+type Stack struct {
+	data []Node
+}
+
+func (s *Stack) Push(item Node) {
+	s.data = append(s.data, item)
+}
+
+func (s *Stack) Pop() Node {
+	ret := s.data[len(s.data)-1]
+	s.data = s.data[:len(s.data)-1]
+	return ret
+}
+
+func (s *Stack) Clear() {
+	s.data = nil
+}
+
+type LeftParen struct {
+	value string
+}
+
+func (l LeftParen) Diff() Node {
+	return l
+}
+
+func (l LeftParen) Simplify() Node {
+	return l
+}
+
+type RightParen struct {
+	value string
+}
+
+func (r RightParen) Diff() Node {
+	return r
+}
+
+func (r RightParen) Simplify() Node {
+	return r
+}
+
+func Reverse(str string) string {
+	runes := []rune(str)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
 func main() {
-	//test := Add{Literal{3}, Literal{2}}
-	test := Add{Variable{"x"}, Literal{2}}
-	fmt.Printf("Test: %#v\n", test)
+	stack := Stack{}
+	tests := [4]string{"(+ 2 x)", "(* (+ x 3) 5)", "(cos (+ x 1))", "(^ x 2)"}
+	operations := map[string]Node{"+": Add{}, "-": Subtract{}, "*": Multiply{}, "/": Divide{}}
 
-	tmp := test.Diff()
-	fmt.Printf("Post-diff: %#v\n", tmp)
-
-	tmp = tmp.Simplify()
-	fmt.Printf("Post-simplify: %#v\n", tmp)
+	for _, exp := range tests {
+		for i := len(exp) - 1; i >= 0; i-- {
+			if exp[i] > 'A' && exp[i] < 'z' {
+				str := ""
+				// Collects string
+				for exp[i] > 'A' && exp[i] < 'z' {
+					str += string(exp[i])
+					i--
+				}
+				stack.Push(Identifier{Reverse(str)})
+			} else if val, ok := operations[string(exp[i])]; ok {
+				r := stack.Pop()
+				l := stack.Pop()
+				switch val.(type) {
+				case Add:
+					stack.Push(Add{l, r})
+				case Multiply:
+					stack.Push(Multiply{l, r})
+				case Divide:
+					stack.Push(Divide{l, r})
+				case Subtract:
+					stack.Push(Subtract{l, r})
+				}
+			} else if string(exp[i]) == "(" {
+				//stack.Push(LeftParen{"("})
+			} else if string(exp[i]) == ")" {
+				//stack.Push(RightParen{")"})
+			} else if exp[i] > '0' && exp[i] < '9' {
+				stack.Push(Literal{int(exp[i] - '0')})
+			}
+		}
+		fmt.Printf("From %s to: %#v\n", exp, stack)
+		stack = Stack{}
+	}
 }
